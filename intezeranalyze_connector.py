@@ -149,7 +149,7 @@ class IntezerAnalyzeConnector(BaseConnector):
         config = self.get_config()
 
         # Place api key in own self variable.
-        api_key = config.get('api_key')
+        api_key = config.get('apiKey')
 
         # Create a new intezerAnalyze Python Object
         s = intezerAnalyze(api_key=api_key)
