@@ -4,6 +4,7 @@ import logging
 import json
 import os
 import time
+import sys
 
 # Establish Logging.
 logging.basicConfig()
@@ -58,6 +59,10 @@ class intezerAnalyze():
             logger.error(
                 "Error connecting to Intezer Analyze code, error message: {}".format(
                     self.ping.text))
+    
+    def exceptionRaise(self, message):
+        problem_message = "Found Problem: {}".format(message)
+        raise Exception(problem_message)
 
     def parse_output(self, input):
         # If prettyPrint set to False
@@ -75,10 +80,10 @@ class intezerAnalyze():
                 return True
             else:
                 logger.warning("check_file: File is over 20mb")
-                return "File is over 20mb"
+                self.exceptionRaise("File is over 20mb")
         else:
             logger.warning("check_file: File does not exist")
-            return "File does not exist"
+            self.exceptionRaise("File does not exist")
 
     def test_connect(self):
         """
@@ -94,11 +99,12 @@ class intezerAnalyze():
         endpoint = '{}/is-available'.format(self.base_url)
         # Make connection to the ping endpoint
         r = self.session.get(endpoint)
-        # Specify Output as JSON
-        output = r.json()
         # If the request is successful
         if r.status_code == 200:
-            return True
+            # Specify Output as JSON
+            output = r.json()
+            if output['is_available']:
+                return True
         # Request failed returning false and logging an error
         else:
             logger.warning(
@@ -119,6 +125,7 @@ class intezerAnalyze():
         # URL that we are querying
         endpoint = '{}/v1-2/analyze-by-sha256'.format(self.base_url)
 
+        # Parameters to send to Intezer
         params = {
             'sha256': sha256,
             'api_key': self.api_key
@@ -126,17 +133,17 @@ class intezerAnalyze():
 
         # Create a request
         r = self.session.post(endpoint, json=params)
-        # Format the response in json
-        output = r.json()
         # If the request is successful
-        if r.status_code == 200:
-            return self.parse_output(r.json())
+        if r.status_code == 201:
+            # Format the response in json
+            output = r.json()
+            return self.parse_output(output)
         # Request failed returning false and logging an error
         else:
             # Write a warning to the console
             logger.warning(
-                "analyze_by_sha256:Error with query to intezerAnalyze, error message: {}".format(
-                    output['message']))
+                "analyze_by_sha256:Error with query to intezerAnalyze, error message: {} {}".format(
+                    r.text, r.status_code))
             return False
 
     def create_analysis(self, file_name):
@@ -152,7 +159,12 @@ class intezerAnalyze():
         s.create_analysis("./filename.exe")
         """
         # URL that we are querying
-        endpoint = '{}/v1-2/analyze?api_key={}'.format(self.base_url, self.api_key)
+        endpoint = '{}/v1-2/analyze'.format(self.base_url)
+        
+        # Parameters to send to Intezer
+        params = {
+            'api_key': self.api_key
+        }
 
         # Perform file check
         file_check = self.check_file(file_name)
@@ -162,16 +174,16 @@ class intezerAnalyze():
             file_list = {'file': open(file_name, 'rb')}
         else:
             logger.warning(
-                "create_analysis:Error with File")
-            return file_check
+                "create_analysis:Error with File - Message: {}".format(file_check))
+            return False
+        
         # Create a request
-        r = self.session.post(endpoint, files=file_list)
-
-        # Format the response in json
-        output = r.json()
+        r = self.session.post(endpoint, files=file_list, data=params)
 
         # If the request is successful
         if r.status_code == 201:
+            # Format the response in json
+            output = r.json()
             return self.parse_output(output)
 
         # Request failed returning false and logging an error
@@ -190,13 +202,20 @@ class intezerAnalyze():
         s.get_analysis("1958f64d-7cc8-49b6-9a11-ca86b25569d7")
         """
         # URL that we are querying
-        endpoint = '{}/v1-2/analyses/{}?api_key={}'.format(self.base_url, analysis_id, self.api_key)
+        endpoint = '{}/v1-2/analyses/{}'.format(self.base_url, analysis_id)
+
+        # Parameters to send to Intezer
+        params = {
+            'api_key': self.api_key
+        }
+
         # Create a request
-        r = self.session.post(endpoint)
-        # Format the response in json
-        output = r.json()
+        r = self.session.post(endpoint, data=params)
+
         # If the request is successful
         if r.status_code == 202:
+            # Format the response in json
+            output = r.json()
             # Report is Queued or In Progress
             i = 0
             # While the result is not succeeded or 50 seconds has not elapsed
@@ -210,6 +229,8 @@ class intezerAnalyze():
                     return False
 
         if r.status_code == 200:
+            # Format the response in json
+            output = r.json()
             # Report is Available
             return self.parse_output(output)
 
