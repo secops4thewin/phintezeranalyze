@@ -4,7 +4,6 @@ import logging
 import json
 import os
 import time
-import sys
 
 # Establish Logging.
 logging.basicConfig()
@@ -59,7 +58,7 @@ class intezerAnalyze():
             logger.error(
                 "Error connecting to Intezer Analyze code, error message: {}".format(
                     self.ping.text))
-    
+
     def exceptionRaise(self, message):
         problem_message = "Found Problem: {}".format(message)
         raise Exception(problem_message)
@@ -160,7 +159,7 @@ class intezerAnalyze():
         """
         # URL that we are querying
         endpoint = '{}/v1-2/analyze'.format(self.base_url)
-        
+
         # Parameters to send to Intezer
         params = {
             'api_key': self.api_key
@@ -176,7 +175,7 @@ class intezerAnalyze():
             logger.warning(
                 "create_analysis:Error with File - Message: {}".format(file_check))
             return False
-        
+
         # Create a request
         r = self.session.post(endpoint, files=file_list, data=params)
 
