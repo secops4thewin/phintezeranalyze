@@ -56,8 +56,10 @@ class intezerAnalyze():
         # Request failed returning false and logging an error
         if self.ping.status_code != 200:
             logger.error(
-                "Error connecting to Intezer Analyze code, error message: {}".format(
-                    self.ping.text))
+                "test_connect: Error with query to intezerAnalyze, status code: {}, error message: {}".format(
+                    self.ping.status_code, self.ping.text))
+        else:
+            return True
 
     def exceptionRaise(self, message):
         problem_message = "Found Problem: {}".format(message)
@@ -107,8 +109,8 @@ class intezerAnalyze():
         # Request failed returning false and logging an error
         else:
             logger.warning(
-                "test_connect:Error with query to intezerAnalyze, error message: {}".format(
-                    output['message']))
+                "test_connect:Error with query to intezerAnalyze, status code: {}, error message: {}".format(
+                    r.status_code, r.text))
             return False
 
     def analyze_by_sha256(self, sha256):
@@ -177,7 +179,7 @@ class intezerAnalyze():
             return False
 
         # Create a request
-        r = self.session.post(endpoint, files=file_list, data=params)
+        r = self.session.post(endpoint, files=file_list, json=params)
 
         # If the request is successful
         if r.status_code == 201:
@@ -189,7 +191,7 @@ class intezerAnalyze():
         else:
             # Write a warning to the console
             logger.warning(
-                "create_analysis:Error with query to intezerAnalyze, error message: {}".format(r.text))
+                "create_analysis:Error with query to intezerAnalyze, status code: {}, error message: {}".format(r.status_code, r.text))
             return False
 
     def get_analysis(self, analysis_id):
@@ -209,7 +211,7 @@ class intezerAnalyze():
         }
 
         # Create a request
-        r = self.session.post(endpoint, data=params)
+        r = self.session.post(endpoint, json=params)
 
         # If the request is successful
         if r.status_code == 202:
@@ -236,5 +238,5 @@ class intezerAnalyze():
         # Request failed returning false and logging an error
         else:
             # Write a warning to the console
-            logger.warning("get_analysis:Error with query to intezerAnalyze, error message: {}".format(r.text))
+            logger.warning("get_analysis:Error with query to intezerAnalyze, status code: {}, error message: {}".format(r.status_code, r.text))
             return False
