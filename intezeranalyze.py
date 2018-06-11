@@ -58,8 +58,6 @@ class intezerAnalyze():
             logger.error(
                 "test_connect: Error with query to intezerAnalyze, status code: {}, error message: {}".format(
                     self.ping.status_code, self.ping.text))
-        else:
-            return True
 
     def exceptionRaise(self, message):
         problem_message = "Found Problem: {}".format(message)
