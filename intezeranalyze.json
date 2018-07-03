@@ -10,13 +10,21 @@
     "product_version_regex": ".*",
     "publisher": "Domenico Perre",
     "license": "Copyright (c) Domenico Perre, 2018",
-    "app_version": "1.0.0",
+    "app_version": "1.1.0",
     "utctime_updated": "2018-05-28T21:59:05.044159Z",
     "package_name": "phantom_intezeranalyze",
     "main_module": "intezeranalyze_connector.pyc",
     "min_phantom_version": "3.5.205",
-    "app_wizard_version": "1.0.0",
+    "app_wizard_version": "1.1.0",
     "configuration": {
+        "base_url": {
+            "description": "Base URL for api request",
+            "data_type": "string",
+            "required": true,
+            "value_list": [],
+            "default": "https://analyze.intezer.com/api/",
+            "order": 0
+        },
         "apiKey": {
             "description": "API Key for submitting samples",
             "data_type": "string",
@@ -195,6 +203,115 @@
                     "data_path": "action_result.summary.verdict",
                     "data_type": "string",
                     "column_name": "verdict",
+                    "column_order": 1
+                },
+                {
+                    "data_path": "action_result.data.*.result.family",
+                    "data_type": "string",
+                    "column_name": "family",
+                    "column_order": 2
+                },
+                {
+                    "data_path": "action_result.data.*.result.sub_verdict",
+                    "data_type": "string",
+                    "column_name": "sub_verdict",
+                    "column_order": 3
+                },
+                {
+                    "data_path": "action_result.data.*.result.sha256",
+                    "data_type": "string",
+                    "contains": [
+                        "sha256"
+                    ],
+                    "column_name": "sha256",
+                    "column_order": 4
+                },
+                {
+                    "data_path": "action_result.data.*.result.analysis_url",
+                    "data_type": "string",
+                    "column_name": "analysis_url",
+                    "column_order": 5
+                },
+                {
+                    "data_path": "action_result.data.*.result.analysis_id",
+                    "data_type": "string",
+                    "contains": [
+                        "id"
+                    ],
+                    "column_name": "analysis_id",
+                    "column_order": 6
+                },
+                {
+                    "data_path": "action_result.status",
+                    "data_type": "string",
+                    "column_name": "status",
+                    "column_order": 7
+                },
+                {
+                    "data_path": "action_result.message",
+                    "data_type": "string"
+                },
+                {
+                    "data_path": "summary.total_objects",
+                    "data_type": "numeric"
+                },
+                {
+                    "data_path": "summary.total_objects_successful",
+                    "data_type": "numeric"
+                }
+            ],
+            "render": {
+                "type": "table"
+            },
+            "versions": "EQ(*)"
+        },
+        {
+            "action": "file reputation",
+            "identifier": "file_reputation",
+            "description": "Queries for file reputation info",
+            "verbose": "",
+            "type": "investigate",
+            "read_only": true,
+            "parameters": {
+                "hash": {
+                    "description": "File hash to query",
+                    "data_type": "string",
+                    "required": true,
+                    "primary": true,
+                    "contains": [
+                        "hash",
+                        "sha256",
+                        "sha1",
+                        "md5"
+                    ],
+                    "value_list": [],
+                    "default": "",
+                    "order": 0
+                }
+            },
+            "output": [
+                {
+                    "data_path": "action_result.parameter.hash",
+                    "data_type": "string",
+                    "contains": [
+                        "hash",
+                        "sha256",
+                        "sha1",
+                        "md5"
+                    ],
+                    "column_name": "hash",
+                    "column_order": 0
+                },
+                {
+                    "data_path": "action_result.summary.verdict",
+                    "data_type": "string",
+                    "column_name": "verdict",
+                    "column_order": 1
+                },
+                {
+                    "data_path": "action_result.data.*.result.family",
+                    "data_type": "string",
+                    "column_name": "family",
                     "column_order": 2
                 },
                 {
