@@ -27,5 +27,5 @@ Requires Phantom 3.5+
 
 
 ## Release Notes
-1.0.0 Initial release with API functionality
-1.1.0 Replaced code inline with best practices
+- 1.0.0 Initial release with API functionality
+- 1.1.0 Replaced code inline with best practices
