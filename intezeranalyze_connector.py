@@ -203,7 +203,7 @@ class IntezerAnalyzeConnector(BaseConnector):
             return action_result.set_status(phantom.APP_ERROR, 'File not found in vault: {}'.format(vault_id_str))
 
         # Issue request to Intezer Analyze
-        endpoint = 'v1-2/analyze'
+        endpoint = 'v2-0/analyze'
 
         # Parameters to send to Intezer
         params = {
@@ -235,7 +235,7 @@ class IntezerAnalyzeConnector(BaseConnector):
             analysis_id = response['analysis_id']
 
             # Create new request to the endpoint that holds the reports
-            endpoint = 'v1-2/analyses/{}'.format(analysis_id)
+            endpoint = 'v2-0/analyses/{}'.format(analysis_id)
 
             # Make connection to the Intezer Report Endpoint
             ret_val, response = self._make_rest_call(endpoint, action_result, json_var=params, method="post")
@@ -298,7 +298,7 @@ class IntezerAnalyzeConnector(BaseConnector):
         report_id = param['id']
 
         # Issue request to Intezer Analyze
-        endpoint = 'v1-2/analyses/{}'.format(report_id)
+        endpoint = 'v2-0/analyses/{}'.format(report_id)
 
         # Parameters to send to Intezer
         params = {
@@ -321,7 +321,7 @@ class IntezerAnalyzeConnector(BaseConnector):
             analysis_id = response['analysis_id']
 
             # Create new request to the endpoint that holds the reports
-            endpoint = 'v1-2/analyses/{}'.format(analysis_id)
+            endpoint = 'v2-0/analyses/{}'.format(analysis_id)
 
             # Create new python dictionary to store output
             data_output = response
@@ -358,7 +358,7 @@ class IntezerAnalyzeConnector(BaseConnector):
         sha_hash = param['hash']
 
         # Issue request to Intezer Analyze
-        endpoint = '/v1-2/analyze-by-sha256'
+        endpoint = '/v2-0/analyze-by-hash'
 
         # Parameters to send to Intezer
         params = {
@@ -384,7 +384,7 @@ class IntezerAnalyzeConnector(BaseConnector):
             # Parameters
             params_rep = {'api_key': api_key}
             # Create new request to the endpoint that holds the reports
-            endpoint = 'v1-2/analyses/{}'.format(analysis_id)
+            endpoint = 'v2-0/analyses/{}'.format(analysis_id)
 
             # Make Second Call to Report URL
             ret_val, response = self._make_rest_call(endpoint, action_result, json_var=params_rep, method="post")
