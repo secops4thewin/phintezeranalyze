@@ -13,7 +13,7 @@ This app provides a three actions that can be used in Phantom cyber
 Requires Phantom 3.5+
 
 ### Installation
-1. Download the latest .tgz from https://github.com/secops4thewin/phintezeranalyze
+1. Download the latest .tgz from https://github.com/intezer/phintezeranalyze
 2. Logon to Phantom
 3. Click Apps
 4. Click Install Apps
@@ -29,3 +29,4 @@ Requires Phantom 3.5+
 ## Release Notes
 - 1.0.0 Initial release with API functionality
 - 1.1.0 Replaced code inline with best practices
+- 1.2.0 Fix endpoints
