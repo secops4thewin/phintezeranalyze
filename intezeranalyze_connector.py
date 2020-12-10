@@ -1,4 +1,6 @@
 # Phantom App imports
+from http import HTTPStatus
+
 import phantom.app as phantom
 from phantom.base_connector import BaseConnector
 from phantom.action_result import ActionResult
@@ -32,6 +34,8 @@ class IntezerAnalyzeConnector(BaseConnector):
         # Do note that the app json defines the asset config, so please
         # modify this as you deem fit.
         self._base_url = None
+
+        self._jwt_token = None
 
     def _process_empty_reponse(self, response, action_result):
 
@@ -124,6 +128,19 @@ class IntezerAnalyzeConnector(BaseConnector):
         # Create a URL to connect to
         url = self._base_url + endpoint
 
+        if endpoint != 'is-available' and not self._jwt_token:
+            response = requests.post(self._base_url + 'v2-0/get-access-token', json={'api_key': config.get('apiKey')})
+            if response.status_code != HTTPStatus.OK:
+                return RetVal(action_result.set_status(phantom.APP_ERROR,
+                                                       "Error Connecting to server. Details: {0}".format(str(response.text))),
+                              resp_json)
+            self._jwt_token = response.json()['result']
+
+        if not headers:
+            headers = dict()
+
+        headers['Authorization'] = 'Bearer ' + self._jwt_token
+
         try:
             r = request_func(
                             url,
@@ -189,9 +206,6 @@ class IntezerAnalyzeConnector(BaseConnector):
         # Add config to init variable to get root API Key
         config = self.get_config()
 
-        # Place api key in its own variable.
-        api_key = config.get('apiKey')
-
         # Place vault id in in its own variable.
         vault_id_str = param['vault_id']
 
@@ -205,11 +219,6 @@ class IntezerAnalyzeConnector(BaseConnector):
         # Issue request to Intezer Analyze
         endpoint = 'v2-0/analyze'
 
-        # Parameters to send to Intezer
-        params = {
-            'api_key': api_key
-        }
-
         # Perform file check
         file_check = self.check_file(str(filepath), action_result)
 
@@ -220,7 +229,7 @@ class IntezerAnalyzeConnector(BaseConnector):
             self.save_progress("File has been found location is: {}".format(str_vault_dict))
 
         # Make connection to the Intezer Analyze endpoint
-        ret_val, response = self._make_rest_call(endpoint, action_result, method="post", data=params, files=file_list)
+        ret_val, response = self._make_rest_call(endpoint, action_result, method="post", files=file_list)
 
         if (phantom.is_fail(ret_val)):
             # so just return from here
@@ -238,7 +247,7 @@ class IntezerAnalyzeConnector(BaseConnector):
             endpoint = 'v2-0/analyses/{}'.format(analysis_id)
 
             # Make connection to the Intezer Report Endpoint
-            ret_val, response = self._make_rest_call(endpoint, action_result, json_var=params, method="post")
+            ret_val, response = self._make_rest_call(endpoint, action_result, method="post")
 
             # If the response is a failure
             if (phantom.is_fail(ret_val)):
@@ -252,7 +261,7 @@ class IntezerAnalyzeConnector(BaseConnector):
                 # Sleep 60 seconds
                 time.sleep(60)
                 # Make connection to the Intezer Report Endpoint
-                ret_val, response = self._make_rest_call(endpoint, action_result, json_var=params, method="post")
+                ret_val, response = self._make_rest_call(endpoint, action_result, method="post")
                 # Increment the timeout counter
                 i += 1
                 # If we reach 10 minutes and the analysis has not returned
@@ -362,8 +371,7 @@ class IntezerAnalyzeConnector(BaseConnector):
 
         # Parameters to send to Intezer
         params = {
-            'sha256': sha_hash,
-            'api_key': api_key
+            'sha256': sha_hash
         }
 
         # Make connection to the Intezer Analyze endpoint
