@@ -179,10 +179,10 @@ class IntezerAnalyzeConnector(BaseConnector):
         # Check if the file exists first
         if os.path.exists(file):
             # Check if the file is an approved format
-            if os.path.getsize(file) / 1024 / 1024 < 19:
+            if os.path.getsize(file) / 1024 / 1024 < 149:
                 return True
             else:
-                message = "File is over 20mb: {}".format(file)
+                message = "File is over 150mb: {}".format(file)
                 return action_result.set_status(phantom.APP_ERROR, status_message=message)
             self.save_progress("File checked successfully")
         else:
