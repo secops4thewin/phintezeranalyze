@@ -118,28 +118,18 @@ class IntezerAnalyzeConnector(BaseConnector):
 
         config = self.get_config()
 
-        resp_json = None
-
         try:
             request_func = getattr(requests, method)
         except AttributeError:
-            return RetVal(action_result.set_status(phantom.APP_ERROR, "Invalid method: {0}".format(method)), resp_json)
+            return RetVal(action_result.set_status(phantom.APP_ERROR, "Invalid method: {0}".format(method)), None)
 
         # Create a URL to connect to
         url = self._base_url + endpoint
 
         if endpoint != 'is-available' and not self._jwt_token:
-            response = requests.post(self._base_url + 'v2-0/get-access-token', json={'api_key': config.get('apiKey')})
-            if response.status_code != HTTPStatus.OK:
-                return RetVal(action_result.set_status(phantom.APP_ERROR,
-                                                       "Error Connecting to server. Details: {0}".format(str(response.text))),
-                              resp_json)
-            self._jwt_token = response.json()['result']
+            self._get_access_token(config, action_result)
 
-        if not headers:
-            headers = dict()
-
-        headers['Authorization'] = 'Bearer ' + self._jwt_token
+        self._append_access_token_header(headers)
 
         try:
             r = request_func(
@@ -151,10 +141,39 @@ class IntezerAnalyzeConnector(BaseConnector):
                             params=params,
                             json=json_var,
                             files=files)
+
+            if r.status_code == HTTPStatus.UNAUTHORIZED:
+                self._get_access_token(config, action_result)
+                self._append_access_token_header(headers)
+
+                r = request_func(
+                    url,
+                    # auth=(username, password),  # basic authentication
+                    data=data,
+                    headers=headers,
+                    verify=config.get('verify_server_cert', False),
+                    params=params,
+                    json=json_var,
+                    files=files)
+
         except Exception as e:
-            return RetVal(action_result.set_status( phantom.APP_ERROR, "Error Connecting to server. Details: {0}".format(str(e))), resp_json)
+            return RetVal(action_result.set_status( phantom.APP_ERROR, "Error Connecting to server. Details: {0}".format(str(e))), None)
 
         return self._process_response(r, action_result)
+
+    def _get_access_token(self, config, action_result):
+        response = requests.post(self._base_url + 'v2-0/get-access-token', json={'api_key': config.get('apiKey')})
+        if response.status_code != HTTPStatus.OK:
+            return RetVal(action_result.set_status(phantom.APP_ERROR,
+                                                   "Error Connecting to server. Details: {0}".format(str(response.text))),
+                          None)
+        self._jwt_token = response.json()['result']
+
+    def _append_access_token_header(self, headers):
+        if not headers:
+            headers = dict()
+
+        headers['Authorization'] = 'Bearer ' + self._jwt_token
 
     def check_file(self, file, action_result):
         # Check if the file exists first
@@ -300,22 +319,14 @@ class IntezerAnalyzeConnector(BaseConnector):
         # Add config to init variable to get root API Key
         config = self.get_config()
 
-        # Place api key in its own variable.
-        api_key = config.get('apiKey')
-
         # Place vault id in in its own variable.
         report_id = param['id']
 
         # Issue request to Intezer Analyze
         endpoint = 'v2-0/analyses/{}'.format(report_id)
 
-        # Parameters to send to Intezer
-        params = {
-            'api_key': api_key
-        }
-
         # Make connection to the Intezer Analyze endpoint
-        ret_val, response = self._make_rest_call(endpoint, action_result, method="post", json_var=params)
+        ret_val, response = self._make_rest_call(endpoint, action_result, method="post")
 
         if (phantom.is_fail(ret_val)):
             # the call to the 3rd party device or service failed, action result should contain all the error details
@@ -360,9 +371,6 @@ class IntezerAnalyzeConnector(BaseConnector):
         # Add config to init variable to get root API Key
         config = self.get_config()
 
-        # Place api key in its own variable.
-        api_key = config.get('apiKey')
-
         # Place vault id in in its own variable.
         sha_hash = param['hash']
 
@@ -371,7 +379,7 @@ class IntezerAnalyzeConnector(BaseConnector):
 
         # Parameters to send to Intezer
         params = {
-            'sha256': sha_hash
+            'hash': sha_hash
         }
 
         # Make connection to the Intezer Analyze endpoint
@@ -389,13 +397,11 @@ class IntezerAnalyzeConnector(BaseConnector):
             # Pass Analysis ID to Intezer Analyze
             analysis_id = response['analysis_id']
 
-            # Parameters
-            params_rep = {'api_key': api_key}
             # Create new request to the endpoint that holds the reports
             endpoint = 'v2-0/analyses/{}'.format(analysis_id)
 
             # Make Second Call to Report URL
-            ret_val, response = self._make_rest_call(endpoint, action_result, json_var=params_rep, method="post")
+            ret_val, response = self._make_rest_call(endpoint, action_result, method="post")
             # Report is Queued or In Progress
             i = 0
             # While the result is not succeeded or 50 seconds has not elapsed
