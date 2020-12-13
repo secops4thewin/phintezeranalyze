@@ -242,14 +242,14 @@ class IntezerAnalyzeConnector(BaseConnector):
             message = "Failed request to detonate file endpoint. Message: {}, Response: {}".format(response, ret_val)
             return action_result.set_status(phantom.APP_ERROR, status_message=message)
 
-        if response['analysis_id']:
+        if response['result_url']:
             self.save_progress("File has been posted to Intezer Analyze successfully")
 
-            # Pass Analysis ID to Intezer Analyze
-            analysis_id = response['analysis_id']
+            # Get result URL
+            result_url = response['result_url']
 
-            # Create new request to the endpoint that holds the reports
-            endpoint = 'analyses/{}'.format(analysis_id)
+            # Create new request to the endpoint that holds the reports, and remove the first '/'
+            endpoint = result_url[1:]
 
             # Make connection to the Intezer Report Endpoint
             ret_val, response = self._make_rest_call(endpoint, action_result)
@@ -318,11 +318,8 @@ class IntezerAnalyzeConnector(BaseConnector):
             message = "Failed request to retrieve report. Message: {}".format(response)
             return action_result.set_status(phantom.APP_ERROR, status_message=message)
 
-        if response['analysis_id']:
+        if response['result']:
             self.save_progress("Report request has been posted to Intezer Analyze successfully")
-
-            # Pass Analysis ID to Intezer Analyze
-            analysis_id = response['analysis_id']
 
             # Create new python dictionary to store output
             data_output = response
@@ -369,14 +366,14 @@ class IntezerAnalyzeConnector(BaseConnector):
             message = "Failed request to retrieve hash report. Message: {}".format(response)
             return action_result.set_status(phantom.APP_ERROR, status_message=message)
 
-        if response['analysis_id']:
+        if response['result_url']:
             self.save_progress("Report request has been posted to Intezer Analyze successfully")
 
-            # Pass Analysis ID to Intezer Analyze
-            analysis_id = response['analysis_id']
+            # Get result URL
+            result_url = response['result_url']
 
             # Create new request to the endpoint that holds the reports
-            endpoint = 'analyses/{}'.format(analysis_id)
+            endpoint = result_url[1:]
 
             # Make Second Call to Report URL
             ret_val, response = self._make_rest_call(endpoint, action_result)
