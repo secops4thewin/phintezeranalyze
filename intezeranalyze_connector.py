@@ -1,5 +1,6 @@
 # Phantom App imports
 from http import HTTPStatus
+from urllib.parse import urljoin
 
 import phantom.app as phantom
 from phantom.base_connector import BaseConnector
@@ -124,7 +125,7 @@ class IntezerAnalyzeConnector(BaseConnector):
             return RetVal(action_result.set_status(phantom.APP_ERROR, "Invalid method: {0}".format(method)))
 
         # Create a URL to connect to
-        url = self._base_url + endpoint
+        url = urljoin(self._base_url, endpoint)
 
         if endpoint != 'is-available' and not self._jwt_token:
             self._get_access_token(config, action_result)
@@ -248,11 +249,8 @@ class IntezerAnalyzeConnector(BaseConnector):
             # Get result URL
             result_url = response['result_url']
 
-            # Create new request to the endpoint that holds the reports, and remove the first '/'
-            endpoint = result_url[1:]
-
             # Make connection to the Intezer Report Endpoint
-            ret_val, response = self._make_rest_call(endpoint, action_result)
+            ret_val, response = self._make_rest_call(result_url, action_result)
 
             # If the response is a failure
             if (phantom.is_fail(ret_val)):
@@ -266,7 +264,7 @@ class IntezerAnalyzeConnector(BaseConnector):
                 # Sleep 60 seconds
                 time.sleep(60)
                 # Make connection to the Intezer Report Endpoint
-                ret_val, response = self._make_rest_call(endpoint, action_result)
+                ret_val, response = self._make_rest_call(result_url, action_result)
                 # Increment the timeout counter
                 i += 1
                 # If we reach 10 minutes and the analysis has not returned
@@ -372,11 +370,8 @@ class IntezerAnalyzeConnector(BaseConnector):
             # Get result URL
             result_url = response['result_url']
 
-            # Create new request to the endpoint that holds the reports
-            endpoint = result_url[1:]
-
             # Make Second Call to Report URL
-            ret_val, response = self._make_rest_call(endpoint, action_result)
+            ret_val, response = self._make_rest_call(result_url, action_result)
             # Report is Queued or In Progress
             i = 0
             # While the result is not succeeded or 50 seconds has not elapsed
@@ -385,7 +380,7 @@ class IntezerAnalyzeConnector(BaseConnector):
                 # Sleep 60 seconds
                 time.sleep(60)
                 # Make connection to the Intezer Report Endpoint
-                ret_val, response = self._make_rest_call(endpoint, action_result)
+                ret_val, response = self._make_rest_call(result_url, action_result)
                 # Increment the timeout counter
                 i += 1
                 # If we reach 10 minutes and the analysis has not returned
@@ -398,7 +393,7 @@ class IntezerAnalyzeConnector(BaseConnector):
                     return action_result.set_status(phantom.APP_ERROR, status_message=message)
 
             # Make connection to the Intezer Report Endpoint
-            ret_val, response = self._make_rest_call(endpoint, action_result)
+            ret_val, response = self._make_rest_call(result_url, action_result)
             self.save_progress("Result Output: {}".format(response))
             # Create new python dictionary to store output
             data_output = response
