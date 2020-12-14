@@ -22,7 +22,7 @@
             "data_type": "string",
             "required": true,
             "value_list": [],
-            "default": "https://analyze.intezer.com/api/",
+            "default": "https://analyze.intezer.com/api/v2-0/",
             "order": 0
         },
         "apiKey": {

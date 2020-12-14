@@ -1,9 +1,11 @@
 # Phantom App imports
+from http import HTTPStatus
+from urllib.parse import urljoin
+
 import phantom.app as phantom
 from phantom.base_connector import BaseConnector
 from phantom.action_result import ActionResult
 import phantom.rules as rules
-
 
 # Usage of the consts file is recommended
 # from intezeranalyze_consts import *
@@ -33,12 +35,14 @@ class IntezerAnalyzeConnector(BaseConnector):
         # modify this as you deem fit.
         self._base_url = None
 
+        self._jwt_token = None
+
     def _process_empty_reponse(self, response, action_result):
 
         if response.status_code == 200:
             return RetVal(phantom.APP_SUCCESS, {})
 
-        return RetVal(action_result.set_status(phantom.APP_ERROR, "Empty response and no information in the header"), None)
+        return RetVal(action_result.set_status(phantom.APP_ERROR, "Empty response and no information in the header"))
 
     def _process_html_response(self, response, action_result):
 
@@ -55,11 +59,11 @@ class IntezerAnalyzeConnector(BaseConnector):
             error_text = "Cannot parse error details"
 
         message = "Status Code: {0}. Data from server:\n{1}\n".format(status_code,
-                error_text)
+                                                                      error_text)
 
         message = message.replace('{', '{{').replace('}', '}}')
 
-        return RetVal(action_result.set_status(phantom.APP_ERROR, message), None)
+        return RetVal(action_result.set_status(phantom.APP_ERROR, message))
 
     def _process_json_response(self, r, action_result):
 
@@ -67,7 +71,8 @@ class IntezerAnalyzeConnector(BaseConnector):
         try:
             resp_json = r.json()
         except Exception as e:
-            return RetVal(action_result.set_status(phantom.APP_ERROR, "Unable to parse JSON response. Error: {0}".format(str(e))), None)
+            return RetVal(
+                action_result.set_status(phantom.APP_ERROR, "Unable to parse JSON response. Error: {0}".format(str(e))))
 
         # Please specify the status codes here
         if 200 <= r.status_code < 399:
@@ -75,9 +80,9 @@ class IntezerAnalyzeConnector(BaseConnector):
 
         # You should process the error returned in the json
         message = "Error from server. Status Code: {0} Data from server: {1}".format(
-                r.status_code, r.text.replace('{', '{{').replace('}', '}}'))
+            r.status_code, r.text.replace('{', '{{').replace('}', '}}'))
 
-        return RetVal(action_result.set_status(phantom.APP_ERROR, message), None)
+        return RetVal(action_result.set_status(phantom.APP_ERROR, message))
 
     def _process_response(self, r, action_result):
 
@@ -106,47 +111,64 @@ class IntezerAnalyzeConnector(BaseConnector):
 
         # everything else is actually an error at this point
         message = "Can't process response from server. Status Code: {0} Data from server: {1}".format(
-                r.status_code, r.text.replace('{', '{{').replace('}', '}}'))
+            r.status_code, r.text.replace('{', '{{').replace('}', '}}'))
 
-        return RetVal(action_result.set_status(phantom.APP_ERROR, message), None)
+        return RetVal(action_result.set_status(phantom.APP_ERROR, message))
 
-    def _make_rest_call(self, endpoint, action_result, headers=None, params=None, data=None, method="get", json_var=None, files=None):
+    def _make_rest_call(self, endpoint, action_result, headers=None, params=None, method="get"):
 
         config = self.get_config()
-
-        resp_json = None
 
         try:
             request_func = getattr(requests, method)
         except AttributeError:
-            return RetVal(action_result.set_status(phantom.APP_ERROR, "Invalid method: {0}".format(method)), resp_json)
+            return RetVal(action_result.set_status(phantom.APP_ERROR, "Invalid method: {0}".format(method)))
 
         # Create a URL to connect to
-        url = self._base_url + endpoint
+        url = urljoin(self._base_url, endpoint)
+
+        if endpoint != 'is-available' and not self._jwt_token:
+            self._get_access_token(config, action_result)
+
+        self._append_access_token_header(headers)
 
         try:
-            r = request_func(
-                            url,
-                            # auth=(username, password),  # basic authentication
-                            data=data,
-                            headers=headers,
-                            verify=config.get('verify_server_cert', False),
-                            params=params,
-                            json=json_var,
-                            files=files)
-        except Exception as e:
-            return RetVal(action_result.set_status( phantom.APP_ERROR, "Error Connecting to server. Details: {0}".format(str(e))), resp_json)
+            response = request_func(url, json=params, headers=headers)
 
-        return self._process_response(r, action_result)
+            if response.status_code == HTTPStatus.UNAUTHORIZED:
+                self._get_access_token(config, action_result)
+                self._append_access_token_header(headers)
+
+                response = request_func(url, json=params, headers=headers)
+
+        except Exception as e:
+            return RetVal(
+                action_result.set_status(phantom.APP_ERROR, "Error Connecting to server. Details: {0}".format(str(e))))
+
+        return self._process_response(response, action_result)
+
+    def _get_access_token(self, config, action_result):
+        response = requests.post(self._base_url + 'get-access-token', json={'api_key': config.get('apiKey')})
+        if response.status_code != HTTPStatus.OK:
+            return RetVal(action_result.set_status(phantom.APP_ERROR,
+                                                   "Error Connecting to server. Details: {0}".format(
+                                                       str(response.text))))
+        self._jwt_token = response.json()['result']
+
+    def _append_access_token_header(self, headers):
+        if not headers:
+            headers = dict()
+
+        headers['Authorization'] = 'Bearer ' + self._jwt_token
 
     def check_file(self, file, action_result):
         # Check if the file exists first
         if os.path.exists(file):
             # Check if the file is an approved format
-            if os.path.getsize(file) / 1024 / 1024 < 19:
+            if os.path.getsize(file) / 1024 / 1024 < 149:
                 return True
             else:
-                message = "File is over 20mb: {}".format(file)
+                message = "File is over 150mb: {}".format(file)
                 return action_result.set_status(phantom.APP_ERROR, status_message=message)
             self.save_progress("File checked successfully")
         else:
@@ -170,7 +192,8 @@ class IntezerAnalyzeConnector(BaseConnector):
         if (phantom.is_fail(ret_val)):
             # the call to the 3rd party device or service failed, action result should contain all the error details
             # so just return from here
-            message = "Test Connectivity Failed for Intezer Analyze.  Message: {}, Response Code: {}".format(response, ret_val)
+            message = "Test Connectivity Failed for Intezer Analyze.  Message: {}, Response Code: {}".format(response,
+                                                                                                             ret_val)
             return action_result.set_status(phantom.APP_ERROR, status_message=message)
 
         # Return success
@@ -186,12 +209,6 @@ class IntezerAnalyzeConnector(BaseConnector):
         # Add an action result object to self (BaseConnector) to represent the action for this param
         action_result = self.add_action_result(ActionResult(dict(param)))
 
-        # Add config to init variable to get root API Key
-        config = self.get_config()
-
-        # Place api key in its own variable.
-        api_key = config.get('apiKey')
-
         # Place vault id in in its own variable.
         vault_id_str = param['vault_id']
 
@@ -203,24 +220,22 @@ class IntezerAnalyzeConnector(BaseConnector):
             return action_result.set_status(phantom.APP_ERROR, 'File not found in vault: {}'.format(vault_id_str))
 
         # Issue request to Intezer Analyze
-        endpoint = 'v2-0/analyze'
-
-        # Parameters to send to Intezer
-        params = {
-            'api_key': api_key
-        }
+        endpoint = 'analyze'
 
         # Perform file check
         file_check = self.check_file(str(filepath), action_result)
 
-        str_vault_dict = str(filepath)
         # Check file type is correct
-        if file_check:
-            file_list = {'file': open(str_vault_dict, 'rb')}
-            self.save_progress("File has been found location is: {}".format(str_vault_dict))
+        if not file_check:
+            return
+
+        str_vault_dict = str(filepath)
+
+        file = {'file': open(str_vault_dict, 'rb')}
+        self.save_progress("File has been found location is: {}".format(str_vault_dict))
 
         # Make connection to the Intezer Analyze endpoint
-        ret_val, response = self._make_rest_call(endpoint, action_result, method="post", data=params, files=file_list)
+        ret_val, response = self._make_rest_call(endpoint, action_result, method="post", params=file)
 
         if (phantom.is_fail(ret_val)):
             # so just return from here
@@ -228,22 +243,19 @@ class IntezerAnalyzeConnector(BaseConnector):
             message = "Failed request to detonate file endpoint. Message: {}, Response: {}".format(response, ret_val)
             return action_result.set_status(phantom.APP_ERROR, status_message=message)
 
-        if response['analysis_id']:
+        if response['result_url']:
             self.save_progress("File has been posted to Intezer Analyze successfully")
 
-            # Pass Analysis ID to Intezer Analyze
-            analysis_id = response['analysis_id']
-
-            # Create new request to the endpoint that holds the reports
-            endpoint = 'v2-0/analyses/{}'.format(analysis_id)
+            # Get result URL
+            result_url = response['result_url']
 
             # Make connection to the Intezer Report Endpoint
-            ret_val, response = self._make_rest_call(endpoint, action_result, json_var=params, method="post")
+            ret_val, response = self._make_rest_call(result_url, action_result)
 
             # If the response is a failure
             if (phantom.is_fail(ret_val)):
-                    message = "Failed retrieving analysis id from output. Message: {}".format(response)
-                    return action_result.set_status(phantom.APP_ERROR, status_message=message)
+                message = "Failed retrieving analysis id from output. Message: {}".format(response)
+                return action_result.set_status(phantom.APP_ERROR, status_message=message)
             # Report is Queued or In Progress
             i = 0
             # While the result is not succeeded or 50 seconds has not elapsed
@@ -252,12 +264,13 @@ class IntezerAnalyzeConnector(BaseConnector):
                 # Sleep 60 seconds
                 time.sleep(60)
                 # Make connection to the Intezer Report Endpoint
-                ret_val, response = self._make_rest_call(endpoint, action_result, json_var=params, method="post")
+                ret_val, response = self._make_rest_call(result_url, action_result)
                 # Increment the timeout counter
                 i += 1
                 # If we reach 10 minutes and the analysis has not returned
                 if i == 10:
-                    return action_result.set_status(phantom.APP_ERROR, status_message="Timed out whilst waiting for report to build")
+                    return action_result.set_status(phantom.APP_ERROR,
+                                                    status_message="Timed out whilst waiting for report to build")
                 # If the response is a failure
                 if (phantom.is_fail(ret_val)):
                     message = "Failed retrieving report for Intezer Analyze. Message: {}".format(response)
@@ -288,25 +301,14 @@ class IntezerAnalyzeConnector(BaseConnector):
         # Add an action result object to self (BaseConnector) to represent the action for this param
         action_result = self.add_action_result(ActionResult(dict(param)))
 
-        # Add config to init variable to get root API Key
-        config = self.get_config()
-
-        # Place api key in its own variable.
-        api_key = config.get('apiKey')
-
         # Place vault id in in its own variable.
         report_id = param['id']
 
         # Issue request to Intezer Analyze
-        endpoint = 'v2-0/analyses/{}'.format(report_id)
-
-        # Parameters to send to Intezer
-        params = {
-            'api_key': api_key
-        }
+        endpoint = 'analyses/{}'.format(report_id)
 
         # Make connection to the Intezer Analyze endpoint
-        ret_val, response = self._make_rest_call(endpoint, action_result, method="post", json_var=params)
+        ret_val, response = self._make_rest_call(endpoint, action_result)
 
         if (phantom.is_fail(ret_val)):
             # the call to the 3rd party device or service failed, action result should contain all the error details
@@ -314,14 +316,8 @@ class IntezerAnalyzeConnector(BaseConnector):
             message = "Failed request to retrieve report. Message: {}".format(response)
             return action_result.set_status(phantom.APP_ERROR, status_message=message)
 
-        if response['analysis_id']:
+        if response['result']:
             self.save_progress("Report request has been posted to Intezer Analyze successfully")
-
-            # Pass Analysis ID to Intezer Analyze
-            analysis_id = response['analysis_id']
-
-            # Create new request to the endpoint that holds the reports
-            endpoint = 'v2-0/analyses/{}'.format(analysis_id)
 
             # Create new python dictionary to store output
             data_output = response
@@ -348,26 +344,19 @@ class IntezerAnalyzeConnector(BaseConnector):
         # Add an action result object to self (BaseConnector) to represent the action for this param
         action_result = self.add_action_result(ActionResult(dict(param)))
 
-        # Add config to init variable to get root API Key
-        config = self.get_config()
-
-        # Place api key in its own variable.
-        api_key = config.get('apiKey')
-
         # Place vault id in in its own variable.
         sha_hash = param['hash']
 
         # Issue request to Intezer Analyze
-        endpoint = '/v2-0/analyze-by-hash'
+        endpoint = '/analyze-by-hash'
 
         # Parameters to send to Intezer
         params = {
-            'sha256': sha_hash,
-            'api_key': api_key
+            'hash': sha_hash
         }
 
         # Make connection to the Intezer Analyze endpoint
-        ret_val, response = self._make_rest_call(endpoint, action_result, method="post", json_var=params)
+        ret_val, response = self._make_rest_call(endpoint, action_result, method="post", params=params)
 
         if (phantom.is_fail(ret_val)):
             # the call to the 3rd party device or service failed, action result should contain all the error details
@@ -375,19 +364,14 @@ class IntezerAnalyzeConnector(BaseConnector):
             message = "Failed request to retrieve hash report. Message: {}".format(response)
             return action_result.set_status(phantom.APP_ERROR, status_message=message)
 
-        if response['analysis_id']:
+        if response['result_url']:
             self.save_progress("Report request has been posted to Intezer Analyze successfully")
 
-            # Pass Analysis ID to Intezer Analyze
-            analysis_id = response['analysis_id']
-
-            # Parameters
-            params_rep = {'api_key': api_key}
-            # Create new request to the endpoint that holds the reports
-            endpoint = 'v2-0/analyses/{}'.format(analysis_id)
+            # Get result URL
+            result_url = response['result_url']
 
             # Make Second Call to Report URL
-            ret_val, response = self._make_rest_call(endpoint, action_result, json_var=params_rep, method="post")
+            ret_val, response = self._make_rest_call(result_url, action_result)
             # Report is Queued or In Progress
             i = 0
             # While the result is not succeeded or 50 seconds has not elapsed
@@ -396,19 +380,20 @@ class IntezerAnalyzeConnector(BaseConnector):
                 # Sleep 60 seconds
                 time.sleep(60)
                 # Make connection to the Intezer Report Endpoint
-                ret_val, response = self._make_rest_call(endpoint, action_result, json_var=params_rep, method="post")
+                ret_val, response = self._make_rest_call(result_url, action_result)
                 # Increment the timeout counter
                 i += 1
                 # If we reach 10 minutes and the analysis has not returned
                 if i == 10:
-                    return action_result.set_status(phantom.APP_ERROR, status_message="Timed out whilst waiting for report to build")
+                    return action_result.set_status(phantom.APP_ERROR,
+                                                    status_message="Timed out whilst waiting for report to build")
                 # If the response is a failure
                 if (phantom.is_fail(ret_val)):
                     message = "Failed retrieving report for Intezer Analyze. Message: {}".format(response)
                     return action_result.set_status(phantom.APP_ERROR, status_message=message)
 
             # Make connection to the Intezer Report Endpoint
-            ret_val, response = self._make_rest_call(endpoint, action_result, json_var=params_rep, method="post")
+            ret_val, response = self._make_rest_call(result_url, action_result)
             self.save_progress("Result Output: {}".format(response))
             # Create new python dictionary to store output
             data_output = response
@@ -498,14 +483,14 @@ if __name__ == '__main__':
     password = args.password
 
     if (username is not None and password is None):
-
         # User specified a username but not a password, so ask
         import getpass
+
         password = getpass.getpass("Password: ")
 
     if (username and password):
         try:
-            print ("Accessing the Login page")
+            print("Accessing the Login page")
             r = requests.get("https://127.0.0.1/login", verify=False)
             csrftoken = r.cookies['csrftoken']
 
@@ -518,11 +503,11 @@ if __name__ == '__main__':
             headers['Cookie'] = 'csrftoken=' + csrftoken
             headers['Referer'] = 'https://127.0.0.1/login'
 
-            print ("Logging into Platform to get the session id")
+            print("Logging into Platform to get the session id")
             r2 = requests.post("https://127.0.0.1/login", verify=False, data=data, headers=headers)
             session_id = r2.cookies['sessionid']
         except Exception as e:
-            print ("Unable to get session id from the platfrom. Error: " + str(e))
+            print("Unable to get session id from the platfrom. Error: " + str(e))
             exit(1)
 
     with open(args.input_test_json) as f:
@@ -538,6 +523,6 @@ if __name__ == '__main__':
             connector._set_csrf_info(csrftoken, headers['Referer'])
 
         ret_val = connector._handle_action(json.dumps(in_json), None)
-        print (json.dumps(json.loads(ret_val), indent=4))
+        print(json.dumps(json.loads(ret_val), indent=4))
 
     exit(0)
