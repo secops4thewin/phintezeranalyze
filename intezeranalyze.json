@@ -1,7 +1,7 @@
 {
     "appid": "d170371a-1249-4003-985f-438288f64bc3",
     "name": "Intezer Analyze",
-    "description": "Intezer’s technology enables your security team to go beyond behavioral analysis. Its solutions diagnose every piece of code quickly and accurately with DNA mapping from Intezer—an industry first enabling your team to address real threats immediately",
+    "description": "Intezers technology enables your security team to go beyond behavioral analysis. Its solutions diagnose every piece of code quickly and accurately with DNA mapping from Intezeran industry first enabling your team to address real threats immediately",
     "type": "sandbox",
     "product_vendor": "Intezer",
     "logo": "intezeranalyze.png",
@@ -10,12 +10,12 @@
     "product_version_regex": ".*",
     "publisher": "Domenico Perre",
     "license": "Copyright (c) Domenico Perre, 2018",
-    "app_version": "1.1.0",
+    "app_version": "1.2.0",
     "utctime_updated": "2018-05-28T21:59:05.044159Z",
     "package_name": "phantom_intezeranalyze",
     "main_module": "intezeranalyze_connector.pyc",
     "min_phantom_version": "3.5.205",
-    "app_wizard_version": "1.1.0",
+    "app_wizard_version": "1.2.0",
     "configuration": {
         "base_url": {
             "description": "Base URL for api request",

@@ -1,6 +1,5 @@
 # Phantom App imports
-from http import HTTPStatus
-from urllib.parse import urljoin
+from urlparse import urljoin
 
 import phantom.app as phantom
 from phantom.base_connector import BaseConnector
@@ -37,12 +36,15 @@ class IntezerAnalyzeConnector(BaseConnector):
 
         self._jwt_token = None
 
+        self._url = None
+
     def _process_empty_reponse(self, response, action_result):
 
         if response.status_code == 200:
             return RetVal(phantom.APP_SUCCESS, {})
 
-        return RetVal(action_result.set_status(phantom.APP_ERROR, "Empty response and no information in the header"))
+        return RetVal(action_result.set_status(phantom.APP_ERROR),
+                      "Empty response and no information in the header, URL: {0}".format(self._url))
 
     def _process_html_response(self, response, action_result):
 
@@ -58,12 +60,11 @@ class IntezerAnalyzeConnector(BaseConnector):
         except:
             error_text = "Cannot parse error details"
 
-        message = "Status Code: {0}. Data from server:\n{1}\n".format(status_code,
-                                                                      error_text)
+        message = "Status Code: {0}. Data from server:\n{1}\n URL: {2} JWT: {3}".format(status_code, error_text, self._url, self._jwt_token)
 
         message = message.replace('{', '{{').replace('}', '}}')
 
-        return RetVal(action_result.set_status(phantom.APP_ERROR, message))
+        return RetVal(action_result.set_status(phantom.APP_ERROR), message)
 
     def _process_json_response(self, r, action_result):
 
@@ -72,17 +73,17 @@ class IntezerAnalyzeConnector(BaseConnector):
             resp_json = r.json()
         except Exception as e:
             return RetVal(
-                action_result.set_status(phantom.APP_ERROR, "Unable to parse JSON response. Error: {0}".format(str(e))))
+                action_result.set_status(phantom.APP_ERROR), "Unable to parse JSON response. Error: {0}, URL: {1}".format(str(e), self._url))
 
         # Please specify the status codes here
         if 200 <= r.status_code < 399:
             return RetVal(phantom.APP_SUCCESS, resp_json)
 
         # You should process the error returned in the json
-        message = "Error from server. Status Code: {0} Data from server: {1}".format(
-            r.status_code, r.text.replace('{', '{{').replace('}', '}}'))
+        message = "Error from server. Status Code: {0} Data from server: {1}, URL: {2} JWT: {3}".format(
+            r.status_code, r.text.replace('{', '{{').replace('}', '}}'), self._url, self._jwt_token)
 
-        return RetVal(action_result.set_status(phantom.APP_ERROR, message))
+        return RetVal(action_result.set_status(phantom.APP_ERROR), message)
 
     def _process_response(self, r, action_result):
 
@@ -110,49 +111,51 @@ class IntezerAnalyzeConnector(BaseConnector):
             return self._process_empty_reponse(r, action_result)
 
         # everything else is actually an error at this point
-        message = "Can't process response from server. Status Code: {0} Data from server: {1}".format(
-            r.status_code, r.text.replace('{', '{{').replace('}', '}}'))
+        message = "Can't process response from server. Status Code: {0} Data from server: {1}, URL: {2} JWT: {3}".format(
+            r.status_code, r.text.replace('{', '{{').replace('}', '}}'), self._url, self._jwt_token)
 
-        return RetVal(action_result.set_status(phantom.APP_ERROR, message))
+        return RetVal(action_result.set_status(phantom.APP_ERROR), message)
 
     def _make_rest_call(self, endpoint, action_result, headers=None, params=None, method="get"):
 
         config = self.get_config()
 
+        full_headers = headers
+
         try:
             request_func = getattr(requests, method)
         except AttributeError:
-            return RetVal(action_result.set_status(phantom.APP_ERROR, "Invalid method: {0}".format(method)))
+            return RetVal(action_result.set_status(phantom.APP_ERROR), "Invalid method: {0}".format(method))
 
         # Create a URL to connect to
-        url = urljoin(self._base_url, endpoint)
+        self._url = urljoin(self._base_url, endpoint)
 
-        if endpoint != 'is-available' and not self._jwt_token:
-            self._get_access_token(config, action_result)
+        if endpoint != 'is-available':
+            if not self._jwt_token:
+                self._get_access_token(config, action_result)
 
-        self._append_access_token_header(headers)
+            full_headers = self._append_access_token_header(headers)
 
         try:
-            response = request_func(url, json=params, headers=headers)
+            response = request_func(self._url, json=params, headers=full_headers)
 
-            if response.status_code == HTTPStatus.UNAUTHORIZED:
+            if response.status_code == 401:
                 self._get_access_token(config, action_result)
-                self._append_access_token_header(headers)
+                full_headers = self._append_access_token_header(headers)
 
-                response = request_func(url, json=params, headers=headers)
+                response = request_func(self._url, json=params, headers=full_headers)
 
         except Exception as e:
             return RetVal(
-                action_result.set_status(phantom.APP_ERROR, "Error Connecting to server. Details: {0}".format(str(e))))
+                action_result.set_status(phantom.APP_ERROR), "Error Connecting to server. Details: {0}, URL: {1}".format(str(e), self._url))
 
         return self._process_response(response, action_result)
 
     def _get_access_token(self, config, action_result):
         response = requests.post(self._base_url + 'get-access-token', json={'api_key': config.get('apiKey')})
-        if response.status_code != HTTPStatus.OK:
-            return RetVal(action_result.set_status(phantom.APP_ERROR,
-                                                   "Error Connecting to server. Details: {0}".format(
-                                                       str(response.text))))
+        if response.status_code != 200:
+            return RetVal(action_result.set_status(phantom.APP_ERROR), "Error Connecting to server. Details: {0}, URL: {1}".format(
+                                                       str(response.text), self._url))
         self._jwt_token = response.json()['result']
 
     def _append_access_token_header(self, headers):
@@ -160,6 +163,8 @@ class IntezerAnalyzeConnector(BaseConnector):
             headers = dict()
 
         headers['Authorization'] = 'Bearer ' + self._jwt_token
+
+        return headers
 
     def check_file(self, file, action_result):
         # Check if the file exists first
@@ -247,7 +252,7 @@ class IntezerAnalyzeConnector(BaseConnector):
             self.save_progress("File has been posted to Intezer Analyze successfully")
 
             # Get result URL
-            result_url = response['result_url']
+            result_url = response['result_url'][1:]
 
             # Make connection to the Intezer Report Endpoint
             ret_val, response = self._make_rest_call(result_url, action_result)
@@ -348,7 +353,7 @@ class IntezerAnalyzeConnector(BaseConnector):
         sha_hash = param['hash']
 
         # Issue request to Intezer Analyze
-        endpoint = '/analyze-by-hash'
+        endpoint = 'analyze-by-hash'
 
         # Parameters to send to Intezer
         params = {
@@ -368,7 +373,7 @@ class IntezerAnalyzeConnector(BaseConnector):
             self.save_progress("Report request has been posted to Intezer Analyze successfully")
 
             # Get result URL
-            result_url = response['result_url']
+            result_url = response['result_url'][1:]
 
             # Make Second Call to Report URL
             ret_val, response = self._make_rest_call(result_url, action_result)
